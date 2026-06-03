@@ -1,0 +1,20 @@
+[Unit]
+Description=FallGuard Bridge — Full AI Pipeline
+After=network.target
+
+[Service]
+Type=simple
+User=kcamfpc1
+WorkingDirectory=/home/kcamfpc1/fallguard/src
+ExecStart=/home/kcamfpc1/fallguard/venv/bin/uvicorn bridge_server:app --host 0.0.0.0 --port 8080
+Restart=always
+RestartSec=5
+Environment=PI_IP=100.83.213.24
+Environment=PI_PORT=5000
+Environment=PI_PASS=fallguard2024
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
