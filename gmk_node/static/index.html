@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FallGuard Clinical — Room 4B</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg0:#0a0c0f; --bg1:#111419; --bg2:#181c22; --bg3:#1f242d;
+    --border:#252b35; --text1:#e8ecf1; --text2:#8892a0; --text3:#525c6a;
+    --green:#22c55e; --amber:#f59e0b; --red:#ef4444; --blue:#3b82f6; --teal:#14b8a6;
+    --mono:'IBM Plex Mono',monospace; --sans:'IBM Plex Sans',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;font-family:var(--sans);background:var(--bg0);color:var(--text1);overflow:hidden;}
+
+  header{
+    height:40px;background:var(--bg1);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0;
+  }
+  .logo{font-family:var(--mono);font-size:13px;font-weight:500;color:var(--teal);letter-spacing:.06em;}
+  .sep{width:1px;height:18px;background:var(--border);}
+  .hroom{font-size:12px;color:var(--text2);}
+  .hright{margin-left:auto;display:flex;align-items:center;gap:10px;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--text3);transition:background .3s;}
+  .dot.ok{background:var(--green);box-shadow:0 0 5px var(--green);}
+  .clabel{font-size:11px;color:var(--text2);font-family:var(--mono);}
+  .fpsbadge{font-size:11px;font-family:var(--mono);color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:4px;border:1px solid var(--border);}
+  .hbtn{font-size:11px;font-family:var(--mono);color:var(--text2);background:transparent;border:1px solid var(--border);border-radius:4px;padding:3px 10px;cursor:pointer;}
+  .hbtn:hover{color:var(--text1);border-color:var(--text3);}
+
+  .layout{
+    display:flex;
+    flex-direction:row;
+    height:calc(100vh - 40px);
+    gap:1px;background:var(--border);
+  }
+
+  /* LEFT — main view */
+  .main{background:var(--bg1);display:flex;flex-direction:column;flex:1;min-width:0;}
+
+  .toolbar{
+    height:38px;background:var(--bg2);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;padding:0 10px;gap:6px;flex-shrink:0;
+  }
+  .tbtn{
+    font-size:11px;font-family:var(--mono);background:var(--bg3);color:var(--text2);
+    border:1px solid var(--border);border-radius:4px;padding:3px 9px;cursor:pointer;transition:all .15s;
+  }
+  .tbtn:hover{border-color:var(--teal);color:var(--teal);}
+  .tbtn.active{background:var(--teal);color:var(--bg0);border-color:var(--teal);}
+  .tbtn.danger{color:var(--red);border-color:var(--red);}
+  .tbtn.danger:hover{background:var(--red);color:white;}
+  .tsep{width:1px;height:18px;background:var(--border);margin:0 2px;}
+  .hint{font-size:11px;color:var(--amber);font-family:var(--mono);display:none;}
+  .hint.show{display:block;}
+
+  /* view tabs */
+  .vtabs{display:flex;gap:4px;margin-left:auto;}
+  .vtab{
+    font-size:10px;font-family:var(--mono);background:var(--bg3);color:var(--text3);
+    border:1px solid var(--border);border-radius:4px;padding:2px 8px;cursor:pointer;
+  }
+  .vtab.active{background:rgba(20,184,166,.15);color:var(--teal);border-color:var(--teal);}
+
+  /* canvas wrap — the main visual area */
+  .canvaswrap{flex:1;position:relative;overflow:hidden;background:#0a0c0f;display:flex;align-items:center;justify-content:center;min-height:0;}
+  .main{min-width:0;}
+
+  /* The overlay canvas sits on top of the video */
+  #videoEl{
+    position:absolute;
+    top:0; left:0;
+    width:100%;
+    height:100%;
+    object-fit:fill;
+    display:block;
+  }
+  #overlayCanvas{
+    position:absolute;
+    top:0; left:0;
+    width:100%;
+    height:100%;
+    cursor:crosshair;
+  }
+
+  /* 2D map canvas (shown in map view, hidden in live view) */
+  #mapCanvas{
+    position:absolute;inset:0;width:100%;height:100%;
+    display:none;
+  }
+
+  /* mode label */
+  .modelabel{
+    position:absolute;top:10px;left:10px;
+    font-size:10px;font-family:var(--mono);letter-spacing:.06em;
+    background:rgba(10,12,15,.75);color:var(--text2);
+    border:1px solid var(--border);border-radius:4px;padding:3px 8px;
+    backdrop-filter:blur(4px);
+  }
+
+  /* calibration overlay */
+  #calibOverlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;pointer-events:none;
+    display:none;
+  }
+  #calibOverlay.show{display:flex;}
+  .calibmsg{
+    background:rgba(10,12,15,.85);border:1px solid var(--amber);
+    border-radius:8px;padding:14px 22px;text-align:center;
+  }
+  .calibmsg p{font-size:13px;color:var(--amber);font-family:var(--mono);}
+  .calibmsg small{font-size:11px;color:var(--text2);display:block;margin-top:4px;}
+
+  /* RIGHT — status panel */
+  .statuspanel{background:var(--bg1);display:flex;flex-direction:column;overflow:hidden;width:290px;flex-shrink:0;}
+
+  .psection{border-bottom:1px solid var(--border);padding:11px 13px;flex-shrink:0;}
+  .slabel{font-size:9px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:7px;}
+
+  .statebadge{font-size:17px;font-weight:600;font-family:var(--mono);letter-spacing:.03em;margin-bottom:5px;transition:color .3s;}
+  .safe{color:var(--green);} .warn{color:var(--amber);} .danger{color:var(--red);}
+
+  .riskrow{display:flex;align-items:center;gap:8px;}
+  .riskwrap{flex:1;height:5px;background:var(--bg3);border-radius:3px;overflow:hidden;}
+  .riskbar{height:100%;border-radius:3px;transition:width .4s,background .3s;width:0%;}
+  .riskval{font-family:var(--mono);font-size:13px;font-weight:500;min-width:26px;text-align:right;}
+
+  .zgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;}
+  .zcell{background:var(--bg3);border-radius:4px;padding:5px 7px;border:1px solid var(--border);}
+  .zpart{font-size:9px;font-family:var(--mono);color:var(--text3);letter-spacing:.05em;margin-bottom:2px;}
+  .zval{font-size:12px;font-family:var(--mono);font-weight:500;}
+  .zBED{color:var(--green);} .zEDGE{color:var(--amber);} .zFLOOR{color:var(--blue);} .zUNKNOWN{color:var(--text3);}
+
+  .sgrid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+  .scell{background:var(--bg3);border-radius:4px;padding:5px 7px;border:1px solid var(--border);}
+  .slab{font-size:9px;font-family:var(--mono);color:var(--text3);letter-spacing:.04em;margin-bottom:2px;}
+  .sval{font-size:12px;font-family:var(--mono);font-weight:500;color:var(--text1);}
+
+  /* event log */
+  .evlog{flex:1;overflow-y:auto;padding:6px 13px;}
+  .evlog::-webkit-scrollbar{width:3px;}
+  .evlog::-webkit-scrollbar-thumb{background:var(--bg3);}
+  .evrow{display:flex;gap:6px;align-items:baseline;padding:3px 0;border-bottom:1px solid var(--border);}
+  .evrow:last-child{border:none;}
+  .evtime{font-size:10px;font-family:var(--mono);color:var(--text3);flex-shrink:0;}
+  .evstate{font-size:11px;font-family:var(--mono);font-weight:500;}
+  .evrisk{font-size:10px;font-family:var(--mono);color:var(--text3);margin-left:auto;flex-shrink:0;}
+
+  /* risk chart */
+  .chartpanel{background:var(--bg2);border-top:1px solid var(--border);overflow:hidden;height:140px;display:flex;flex-direction:column;flex-shrink:0;}
+  .chartlabel{padding:6px 13px 0;font-size:9px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--text3);flex-shrink:0;}
+  #riskChart{flex:1;width:100%;display:block;}
+
+  /* alert banner */
+  #alertBanner{
+    display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+    z-index:200;background:var(--red);color:white;
+    font-family:var(--mono);font-size:13px;font-weight:500;
+    padding:11px 22px;border-radius:6px;
+    box-shadow:0 4px 20px rgba(239,68,68,.5);
+  }
+
+  /* auth modal */
+  #authModal{
+    display:none;position:fixed;inset:0;z-index:100;
+    background:rgba(0,0,0,.65);align-items:center;justify-content:center;
+    backdrop-filter:blur(4px);
+  }
+  #authModal.show{display:flex;}
+  .mbox{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:22px;width:300px;}
+  .mtitle{font-size:13px;font-weight:500;margin-bottom:14px;}
+  .minput{
+    width:100%;background:var(--bg3);border:1px solid var(--border);
+    color:var(--text1);font-family:var(--mono);font-size:13px;
+    padding:7px 9px;border-radius:4px;outline:none;margin-bottom:10px;
+  }
+  .minput:focus{border-color:var(--teal);}
+  .mrow{display:flex;gap:7px;}
+  .mbtn{flex:1;padding:7px;border-radius:4px;font-size:12px;font-family:var(--mono);cursor:pointer;border:1px solid var(--border);background:var(--bg3);color:var(--text2);}
+  .mbtn.pri{background:var(--teal);color:var(--bg0);border-color:var(--teal);}
+  .merr{font-size:11px;color:var(--red);margin-bottom:7px;display:none;}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">FALLGUARD</span>
+  <div class="sep"></div>
+  <span class="hroom" id="hdrRoom">Room 4B · Patient P-001</span>
+  <div class="hright">
+    <span class="dot" id="connDot"></span>
+    <span class="clabel" id="connLabel">connecting</span>
+    <span class="fpsbadge" id="fpsBadge">— fps</span>
+    <button class="hbtn" onclick="newShift()">New Shift</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- LEFT MAIN -->
+  <div class="main">
+    <div class="toolbar">
+      <button class="tbtn" id="btnBed"  onclick="startZone('bed')">Mark Bed</button>
+      <button class="tbtn" id="btnEdge" onclick="startZone('edge')">Mark Edge</button>
+      <button class="tbtn" id="btnSave" onclick="saveZones()">Save Zones</button>
+      <div class="tsep"></div>
+      <button class="tbtn danger" onclick="clearZones()">Clear</button>
+      <button class="tbtn" onclick="showRaw()">Raw Video</button>
+      <span class="hint" id="hint">Click to place points · right-click to finish</span>
+      <div class="vtabs">
+        <button class="vtab active" id="vt-live" onclick="setView('live')">Live + Zones</button>
+        <button class="vtab" id="vt-map"  onclick="setView('map')">2D Map</button>
+        <button class="vtab" id="vt-heat" onclick="setView('heat')">Heatmap</button>
+      </div>
+    </div>
+
+    <div class="canvaswrap" id="canvasWrap">
+      <!-- Raw video feed (always running behind) -->
+      <img id="videoEl" src="" alt="camera feed">
+
+      <!-- Overlay canvas — zones + avatar drawn here -->
+      <canvas id="overlayCanvas"></canvas>
+
+      <!-- 2D map canvas -->
+      <canvas id="mapCanvas"></canvas>
+
+      <div class="modelabel" id="modeLabel">LIVE · ZONE OVERLAY</div>
+
+      <!-- Need calibration message -->
+      <div id="calibOverlay">
+        <div class="calibmsg">
+          <p>Draw zones on the live feed</p>
+          <small>Click "Mark Bed" → click bed corners on video → right-click to finish<br>Then "Mark Edge" → same for the edge area → "Save Zones"</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT STATUS -->
+  <div class="statuspanel">
+    <div class="psection">
+      <div class="slabel">Detection State</div>
+      <div class="statebadge safe" id="stateBadge">NO_PERSON</div>
+      <div class="riskrow">
+        <div class="riskwrap"><div class="riskbar" id="riskBar"></div></div>
+        <span class="riskval" id="riskVal">0</span>
+      </div>
+    </div>
+
+    <div class="psection">
+      <div class="slabel">Body Zone Classification</div>
+      <div class="zgrid">
+        <div class="zcell"><div class="zpart">HEAD</div><div class="zval zUNKNOWN" id="zHead">—</div></div>
+        <div class="zcell"><div class="zpart">TORSO</div><div class="zval zUNKNOWN" id="zTorso">—</div></div>
+        <div class="zcell"><div class="zpart">FEET</div><div class="zval zUNKNOWN" id="zFeet">—</div></div>
+      </div>
+    </div>
+
+    <div class="psection">
+      <div class="slabel">Body Metrics</div>
+      <div class="sgrid">
+        <div class="scell"><div class="slab">POSTURE</div><div class="sval" id="sPosture">—</div></div>
+        <div class="scell"><div class="slab">ANGLE</div><div class="sval" id="sAngle">—°</div></div>
+        <div class="scell"><div class="slab">MOTION</div><div class="sval" id="sMotion">—</div></div>
+        <div class="scell"><div class="slab">AT EDGE</div><div class="sval" id="sEdge">—</div></div>
+      </div>
+    </div>
+
+    <div class="psection">
+      <div class="slabel">Fall Detection</div>
+      <div class="sgrid">
+        <div class="scell"><div class="slab">STATUS</div><div class="sval" id="sFall" style="color:var(--green)">Clear</div></div>
+        <div class="scell"><div class="slab">VELOCITY</div><div class="sval" id="sVel">0.000</div></div>
+      </div>
+    </div>
+
+    <div class="psection" style="flex-shrink:0">
+      <div class="slabel">Event Log</div>
+    </div>
+    <div class="evlog" id="evLog"></div>
+
+    <div class="chartpanel">
+      <div class="chartlabel">Risk Timeline — Last 10 min</div>
+      <canvas id="riskChart"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<!-- Auth modal -->
+<div id="authModal">
+  <div class="mbox">
+    <div class="mtitle">Raw Video Access</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5">Access is logged. Clinical use only.</p>
+    <div class="merr" id="authErr">Invalid password</div>
+    <input class="minput" type="password" id="authPwd" placeholder="Password" onkeydown="if(event.key==='Enter')doAuth()">
+    <div class="mrow">
+      <button class="mbtn" onclick="closeAuth()">Cancel</button>
+      <button class="mbtn pri" onclick="doAuth()">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<div id="alertBanner"></div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────────
+const POLL_MS    = 150;
+const HIST_MS    = 10 * 60 * 1000;
+const BRIDGE_IP  = window.location.hostname; // same machine
+
+// ── State ──────────────────────────────────────────────────────────
+let latest       = {};
+let bedZone      = [], edgeZone = [];
+let drawMode     = null, drawPts = [];
+let viewMode     = 'live';
+let riskHist     = [];
+let heatData     = null;
+let rawToken     = null;
+let calibrated   = false;
+
+// ── Canvas + video setup ───────────────────────────────────────────
+const wrap    = document.getElementById('canvasWrap');
+const videoEl = document.getElementById('videoEl');
+const oc      = document.getElementById('overlayCanvas');
+const mc      = document.getElementById('mapCanvas');
+const octx    = oc.getContext('2d');
+const mctx    = mc.getContext('2d');
+
+function resize() {
+  oc.width  = wrap.clientWidth;
+  oc.height = wrap.clientHeight;
+  mc.width  = wrap.clientWidth;
+  mc.height = wrap.clientHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Coordinate helpers ─────────────────────────────────────────────
+// Video may be letterboxed inside the canvas — compute the actual rendered rect
+function videoRect() {
+  const vw = wrap.clientWidth, vh = wrap.clientHeight;
+  const iw = videoEl.naturalWidth  || 640;
+  const ih = videoEl.naturalHeight || 480;
+  const scale = Math.min(vw / iw, vh / ih);
+  const rw = iw * scale, rh = ih * scale;
+  const rx = (vw - rw) / 2, ry = (vh - rh) / 2;
+  return { x: rx, y: ry, w: rw, h: rh };
+}
+
+// Canvas px → normalised (0-1) relative to video rect
+function c2n(cx, cy) {
+  const r = videoRect();
+  return [(cx - r.x) / r.w, (cy - r.y) / r.h];
+}
+// Normalised → canvas px
+function n2c(nx, ny) {
+  const r = videoRect();
+  return [r.x + nx * r.w, r.y + ny * r.h];
+}
+
+// ── Polling ────────────────────────────────────────────────────────
+async function poll() {
+  try {
+    const r = await fetch('/api/pose');
+    if (!r.ok) throw 0;
+    latest = await r.json();
+    updateUI(latest);
+    riskHist.push({ ts: Date.now(), risk: latest.risk_score || 0 });
+    const cutoff = Date.now() - HIST_MS;
+    riskHist = riskHist.filter(p => p.ts > cutoff);
+    document.getElementById('connDot').className   = 'dot ok';
+    document.getElementById('connLabel').textContent = 'online';
+    document.getElementById('fpsBadge').textContent  = (latest.fps || 0).toFixed(1) + ' fps';
+    calibrated = latest.calibrated;
+    document.getElementById('calibOverlay').style.display = 'none';
+  } catch(e) {
+    document.getElementById('connDot').className   = 'dot';
+    document.getElementById('connLabel').textContent = 'offline';
+  }
+}
+
+// Start raw video stream as background (always running, hidden in map view)
+function startVideoStream() {
+  // We always stream — it's the base layer
+  // Token needed — try without token for calibration mode (Pi allows stream)
+  // Actually we stream via proxy with no token by default
+  // We use the MJPEG stream as background
+  videoEl.src = '/api/rawfeed/stream?token=calib';
+  videoEl.onerror = () => {
+    // No auth yet — just leave black background until user authenticates
+    videoEl.src = '';
+  };
+}
+
+// For calibration we auto-start an unauthenticated preview
+// Pi serves /api/rawfeed/stream only with token — so for calibration
+// we need user to auth once. Let's auto-show auth on first load.
+function init() {
+  // Check if we have a saved token in sessionStorage
+  const saved = sessionStorage.getItem('fg_token');
+  if (saved) {
+    rawToken = saved;
+    videoEl.src = `/api/rawfeed/stream?token=${rawToken}`;
+  } else {
+    // Show calibration overlay until they auth
+    document.getElementById('calibOverlay').classList.add('show');
+    document.getElementById('calibOverlay').querySelector('p').textContent = 'Authenticate to view camera';
+    document.getElementById('calibOverlay').querySelector('small').textContent = 'Click "Raw Video" to unlock the feed, then draw your zones.';
+    document.getElementById('calibOverlay').style.display = 'flex';
+    document.getElementById('calibOverlay').style.pointerEvents = 'auto';
+  }
+}
+
+setInterval(poll, POLL_MS);
+setInterval(drawFrame, 80);
+setInterval(drawChart, 2000);
+setInterval(fetchEvents, 5000);
+setInterval(fetchHeat, 15000);
+poll();
+init();
+fetchEvents();
+
+// ── UI update ──────────────────────────────────────────────────────
+function updateUI(d) {
+  const state = d.state || 'NO_PERSON';
+  const risk  = d.risk_score || 0;
+
+  const badge = document.getElementById('stateBadge');
+  badge.textContent = state;
+  badge.className = 'statebadge ' + riskCls(risk);
+
+  const bar = document.getElementById('riskBar');
+  bar.style.width      = risk + '%';
+  bar.style.background = riskCol(risk);
+  const rv = document.getElementById('riskVal');
+  rv.textContent = risk;
+  rv.style.color = riskCol(risk);
+
+  const z = d.zones || {};
+  setZone('zHead',  z.head_zone);
+  setZone('zTorso', z.torso_zone);
+  setZone('zFeet',  z.feet_zone);
+
+  document.getElementById('sPosture').textContent = d.posture || '—';
+  document.getElementById('sAngle').textContent   = (d.body_angle || 0).toFixed(1) + '°';
+  document.getElementById('sMotion').textContent  = (d.motion_score || 0).toFixed(0);
+  const es = d.time_at_edge || 0;
+  const eel = document.getElementById('sEdge');
+  eel.textContent = es > 0 ? es.toFixed(0) + 's' : '—';
+  eel.style.color = es >= 8 ? 'var(--amber)' : 'var(--text1)';
+
+  const fel = document.getElementById('sFall');
+  if (state === 'FALL_CONFIRMED')  { fel.textContent = 'CONFIRMED'; fel.style.color = 'var(--red)'; }
+  else if (state === 'FALL_SUSPECTED') { fel.textContent = 'Suspected'; fel.style.color = 'var(--amber)'; }
+  else { fel.textContent = 'Clear'; fel.style.color = 'var(--green)'; }
+  document.getElementById('sVel').textContent = (d.fall_velocity || 0).toFixed(3);
+
+  (d.alerts || []).forEach(a => {
+    if (a.type === 'FALL_CONFIRMED') showAlert('⚠ FALL CONFIRMED — IMMEDIATE RESPONSE', 8000);
+    else if (a.type === 'FALL_SUSPECTED') showAlert('⚠ Possible fall detected', 4000);
+    else if (a.type === 'EDGE_ALERT') showAlert(`Patient at edge for ${a.seconds}s`, 3000);
+  });
+}
+
+function setZone(id, val) {
+  const el = document.getElementById(id);
+  el.textContent = val || '—';
+  el.className = 'zval z' + (val || 'UNKNOWN');
+}
+function riskCls(r) { return r>=75?'danger':r>=40?'warn':'safe'; }
+function riskCol(r) { return r>=75?'var(--red)':r>=40?'var(--amber)':'var(--green)'; }
+
+// ── Drawing ────────────────────────────────────────────────────────
+function drawFrame() {
+  octx.clearRect(0, 0, oc.width, oc.height);
+
+  if (viewMode === 'live' || viewMode === 'heat') {
+    // Draw zones over video
+    drawPoly(bedZone,  '#22c55e', 'rgba(34,197,94,.08)',  'Bed Zone');
+    drawPoly(edgeZone, '#f59e0b', 'rgba(245,158,11,.07)', 'Edge Zone');
+    if (drawMode && drawPts.length) drawInProgress();
+    if (latest.body_parts) drawAvatar();
+    if (viewMode === 'heat' && heatData) drawHeat();
+  }
+
+  if (viewMode === 'map') {
+    drawMap();
+  }
+}
+
+function drawPoly(pts, stroke, fill, label) {
+  if (pts.length < 2) return;
+  octx.beginPath();
+  pts.forEach((p, i) => {
+    const [cx, cy] = n2c(p.x, p.y);
+    i === 0 ? octx.moveTo(cx, cy) : octx.lineTo(cx, cy);
+  });
+  octx.closePath();
+  octx.fillStyle = fill;
+  octx.fill();
+  octx.strokeStyle = stroke;
+  octx.lineWidth = 2;
+  octx.setLineDash([6, 3]);
+  octx.stroke();
+  octx.setLineDash([]);
+
+  if (pts.length >= 3) {
+    const cx = pts.reduce((s,p)=>s+p.x,0)/pts.length;
+    // Bed Zone label: top of polygon. Edge Zone label: bottom of polygon
+    const isBed = label === 'Bed Zone';
+    const ys = pts.map(p=>p.y);
+    const labelY = isBed ? Math.min(...ys) : Math.max(...ys);
+    const offset = isBed ? -18 : 18;
+    const [px, py] = n2c(cx, labelY);
+    const finalY = py + offset;
+
+    // pill background
+    octx.fillStyle = isBed ? 'rgba(34,197,94,0.85)' : 'rgba(245,158,11,0.85)';
+    const tw = octx.measureText(label).width;
+    octx.beginPath();
+    octx.roundRect(px - tw/2 - 8, finalY - 11, tw + 16, 22, 6);
+    octx.fill();
+
+    // label text
+    octx.fillStyle = '#000';
+    octx.font = 'bold 12px IBM Plex Mono, monospace';
+    octx.textAlign = 'center';
+    octx.textBaseline = 'middle';
+    octx.fillText(label, px, finalY);
+    octx.textBaseline = 'alphabetic';
+  }
+}
+
+function drawInProgress() {
+  const col = drawMode === 'bed' ? '#22c55e' : '#f59e0b';
+  if (drawPts.length === 0) return;
+
+  // Draw filled polygon if 3+ points
+  if (drawPts.length >= 3) {
+    octx.beginPath();
+    drawPts.forEach((p, i) => {
+      const [cx, cy] = n2c(p.x, p.y);
+      i === 0 ? octx.moveTo(cx, cy) : octx.lineTo(cx, cy);
+    });
+    octx.closePath();
+    octx.fillStyle = col + '22';
+    octx.fill();
+  }
+
+  // Draw lines between points
+  octx.beginPath();
+  drawPts.forEach((p, i) => {
+    const [cx, cy] = n2c(p.x, p.y);
+    i === 0 ? octx.moveTo(cx, cy) : octx.lineTo(cx, cy);
+  });
+  if (drawPts.length >= 3) octx.closePath();
+  octx.strokeStyle = col;
+  octx.lineWidth = 2;
+  octx.setLineDash([6, 3]);
+  octx.stroke();
+  octx.setLineDash([]);
+
+  // Draw numbered points
+  drawPts.forEach((p, i) => {
+    const [cx, cy] = n2c(p.x, p.y);
+    // Circle
+    octx.beginPath(); octx.arc(cx, cy, 14, 0, Math.PI*2);
+    octx.fillStyle = col; octx.fill();
+    // Number
+    octx.fillStyle = '#000';
+    octx.font = 'bold 13px IBM Plex Mono, monospace';
+    octx.textAlign = 'center';
+    octx.textBaseline = 'middle';
+    octx.fillText(i + 1, cx, cy);
+  });
+
+  // Instruction label
+  const label = drawMode === 'bed' ? 'BED ZONE' : 'EDGE ZONE';
+  const pts = drawPts.length;
+  const msg = pts < 4 ? `${label}: click point ${pts+1} of 4` : `${label}: right-click to finish (${pts} pts)`;
+  octx.fillStyle = 'rgba(0,0,0,0.7)';
+  octx.fillRect(oc.width/2 - 200, oc.height - 50, 400, 34);
+  octx.fillStyle = col;
+  octx.font = 'bold 13px IBM Plex Mono, monospace';
+  octx.textAlign = 'center';
+  octx.textBaseline = 'middle';
+  octx.fillText(msg, oc.width/2, oc.height - 33);
+}
+
+function drawAvatar() {
+  const bp  = latest.body_parts || {};
+  const lms = latest.landmarks  || [];
+  const risk = latest.risk_score || 0;
+  const col  = risk>=75?'#ef4444':risk>=40?'#f59e0b':'#22c55e';
+
+  // Draw skeleton lines if in skeleton mode, else avatar dots
+  if (lms.length > 0) {
+    const byName = {};
+    lms.forEach(l => { byName[l.name] = l; });
+    const bones = [
+      ['NOSE','LEFT_SHOULDER'],['NOSE','RIGHT_SHOULDER'],
+      ['LEFT_SHOULDER','RIGHT_SHOULDER'],
+      ['LEFT_SHOULDER','LEFT_HIP'],['RIGHT_SHOULDER','RIGHT_HIP'],
+      ['LEFT_HIP','RIGHT_HIP'],
+      ['LEFT_HIP','LEFT_KNEE'],['RIGHT_HIP','RIGHT_KNEE'],
+      ['LEFT_KNEE','LEFT_ANKLE'],['RIGHT_KNEE','RIGHT_ANKLE'],
+    ];
+    octx.strokeStyle = col + 'cc';
+    octx.lineWidth = 2.5;
+    bones.forEach(([a,b]) => {
+      const la = byName[a], lb = byName[b];
+      if (!la || !lb || la.visibility < .35 || lb.visibility < .35) return;
+      const [ax,ay] = n2c(la.x, la.y);
+      const [bx,by] = n2c(lb.x, lb.y);
+      octx.beginPath(); octx.moveTo(ax,ay); octx.lineTo(bx,by); octx.stroke();
+    });
+    lms.forEach(l => {
+      if (l.visibility < .35) return;
+      const [px,py] = n2c(l.x, l.y);
+      octx.beginPath(); octx.arc(px, py, 4, 0, Math.PI*2);
+      octx.fillStyle = col; octx.fill();
+    });
+  } else {
+    // Fallback — body part dots
+    [['head', 10], ['torso', 8], ['feet', 6]].forEach(([k, r]) => {
+      const pt = bp[k];
+      if (!pt || pt[0] === null) return;
+      const [cx, cy] = n2c(pt[0], pt[1]);
+      octx.beginPath(); octx.arc(cx, cy, r, 0, Math.PI*2);
+      octx.fillStyle = col + '60'; octx.fill();
+      octx.strokeStyle = col; octx.lineWidth = 2; octx.stroke();
+    });
+  }
+}
+
+function drawHeat() {
+  if (!heatData?.grid) return;
+  const grid = heatData.grid, maxV = heatData.max_val || 1, sz = heatData.size || 64;
+  const r = videoRect();
+  const cw = r.w / sz, ch = r.h / sz;
+  for (let y=0; y<sz; y++) for (let x=0; x<sz; x++) {
+    const v = grid[y][x] / maxV;
+    if (v < 0.02) continue;
+    const rr = Math.round(239*v + 59*(1-v));
+    const gg = Math.round(68*v  + 130*(1-v));
+    const bb = Math.round(68*v  + 246*(1-v));
+    octx.fillStyle = `rgba(${rr},${gg},${bb},${Math.min(v*.6,.6)})`;
+    octx.fillRect(r.x + x*cw, r.y + y*ch, cw+1, ch+1);
+  }
+}
+
+// ── 2D top-down MAP view ───────────────────────────────────────────
+function drawMap() {
+  mctx.clearRect(0, 0, mc.width, mc.height);
+  const w = mc.width, h = mc.height;
+
+  // Dark background with grid
+  mctx.fillStyle = '#111419';
+  mctx.fillRect(0, 0, w, h);
+  mctx.strokeStyle = 'rgba(37,43,53,.7)';
+  mctx.lineWidth = .5;
+  for (let x=0; x<w; x+=40) { mctx.beginPath(); mctx.moveTo(x,0); mctx.lineTo(x,h); mctx.stroke(); }
+  for (let y=0; y<h; y+=40) { mctx.beginPath(); mctx.moveTo(0,y); mctx.lineTo(w,y); mctx.stroke(); }
+
+  // Draw zone polygons on map (same normalised coords)
+  drawMapPoly(mctx, bedZone,  '#22c55e', 'rgba(34,197,94,.12)', 'Bed Zone', w, h);
+  drawMapPoly(mctx, edgeZone, '#f59e0b', 'rgba(245,158,11,.10)', 'Edge Zone', w, h);
+
+  // Draw patient avatar on map
+  const bp   = latest.body_parts || {};
+  const risk  = latest.risk_score || 0;
+  const col   = risk>=75?'#ef4444':risk>=40?'#f59e0b':'#22c55e';
+  const posture = latest.posture || 'UNKNOWN';
+
+  const torso = bp.torso;
+  if (torso && torso[0] !== null) {
+    const tx = torso[0] * w, ty = torso[1] * h;
+    // Glow
+    const grd = mctx.createRadialGradient(tx,ty,0,tx,ty,55);
+    grd.addColorStop(0, col+'25'); grd.addColorStop(1,'transparent');
+    mctx.fillStyle = grd; mctx.fillRect(tx-55,ty-55,110,110);
+
+    // Body ellipse
+    const lying = posture==='LYING'||posture==='RECLINING';
+    mctx.beginPath();
+    mctx.ellipse(tx, ty, lying?38:14, lying?14:38, 0, 0, Math.PI*2);
+    mctx.fillStyle = col+'35'; mctx.fill();
+    mctx.strokeStyle = col; mctx.lineWidth = 2; mctx.stroke();
+  }
+  const head = bp.head;
+  if (head && head[0] !== null) {
+    const hx = head[0]*w, hy = head[1]*h;
+    mctx.beginPath(); mctx.arc(hx, hy, 9, 0, Math.PI*2);
+    mctx.fillStyle = col+'30'; mctx.fill();
+    mctx.strokeStyle = col; mctx.lineWidth = 1.5; mctx.stroke();
+    mctx.fillStyle = col; mctx.font = 'bold 8px IBM Plex Mono,monospace';
+    mctx.textAlign = 'center'; mctx.fillText('H', hx, hy+3);
+  }
+  const feet = bp.feet;
+  if (feet && feet[0] !== null) {
+    const fx = feet[0]*w, fy = feet[1]*h;
+    mctx.beginPath(); mctx.arc(fx, fy, 5, 0, Math.PI*2);
+    mctx.fillStyle = col+'40'; mctx.fill();
+    mctx.strokeStyle = col; mctx.lineWidth = 1; mctx.stroke();
+  }
+  // Connect
+  if (head?.[0]!==null && torso?.[0]!==null && feet?.[0]!==null) {
+    mctx.beginPath();
+    mctx.moveTo(head[0]*w, head[1]*h);
+    mctx.lineTo(torso[0]*w, torso[1]*h);
+    mctx.lineTo(feet[0]*w, feet[1]*h);
+    mctx.strokeStyle = col+'55'; mctx.lineWidth = 2.5; mctx.stroke();
+  }
+
+  // State label on map
+  const state = latest.state || 'NO_PERSON';
+  mctx.fillStyle = 'rgba(10,12,15,.7)';
+  mctx.fillRect(8, 8, 200, 28);
+  mctx.fillStyle = col;
+  mctx.font = 'bold 13px IBM Plex Mono,monospace';
+  mctx.textAlign = 'left';
+  mctx.fillText(state, 14, 27);
+}
+
+function drawMapPoly(ctx, pts, stroke, fill, label, w, h) {
+  if (pts.length < 2) return;
+  ctx.beginPath();
+  pts.forEach((p,i) => i===0?ctx.moveTo(p.x*w,p.y*h):ctx.lineTo(p.x*w,p.y*h));
+  ctx.closePath();
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.strokeStyle = stroke; ctx.lineWidth = 1.5;
+  ctx.setLineDash([5,3]); ctx.stroke(); ctx.setLineDash([]);
+  if (pts.length>=3) {
+    const isBed = label === 'Bed Zone';
+    const ys = pts.map(p=>p.y*h);
+    const cx = pts.reduce((s,p)=>s+p.x,0)/pts.length*w;
+    const labelY = isBed ? Math.min(...ys) - 14 : Math.max(...ys) + 18;
+    // pill
+    const tw = ctx.measureText(label).width + 16;
+    ctx.fillStyle = isBed ? 'rgba(34,197,94,0.85)' : 'rgba(245,158,11,0.85)';
+    ctx.beginPath();
+    ctx.roundRect(cx - tw/2, labelY - 11, tw, 20, 5);
+    ctx.fill();
+    // text
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 11px IBM Plex Mono,monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, cx, labelY);
+    ctx.textBaseline = 'alphabetic';
+  }
+}
+
+// ── Zone calibration ───────────────────────────────────────────────
+function startZone(mode) {
+  if (!rawToken && !videoEl.src) { showAlert('Authenticate first — click Raw Video', 3000); return; }
+  drawMode = mode; drawPts = [];
+  document.getElementById('hint').classList.add('show');
+  document.getElementById('btnBed').classList.toggle('active', mode==='bed');
+  document.getElementById('btnEdge').classList.toggle('active', mode==='edge');
+  oc.style.cursor = 'crosshair';
+}
+
+oc.addEventListener('click', e => {
+  if (!drawMode) return;
+  const rect = oc.getBoundingClientRect();
+  const [nx, ny] = c2n(e.clientX - rect.left, e.clientY - rect.top);
+  if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return; // outside video
+  drawPts.push({ x: nx, y: ny });
+});
+
+oc.addEventListener('contextmenu', e => {
+  e.preventDefault();
+  if (!drawMode || drawPts.length < 3) return;
+  const which = drawMode;
+  if (which === 'bed') { bedZone = [...drawPts]; showAlert('✓ Bed zone set — now draw Edge zone', 3000); }
+  else { edgeZone = [...drawPts]; showAlert('✓ Edge zone set — click Save Zones!', 3000); }
+  document.getElementById('hint').classList.remove('show');
+  document.getElementById('btnBed').classList.remove('active');
+  document.getElementById('btnEdge').classList.remove('active');
+  drawMode = null; drawPts = [];
+  oc.style.cursor = 'default';
+});
+
+// Auto-finish after 4 points
+const origClick = oc.onclick;
+oc.addEventListener('click', e => {
+  if (drawMode && drawPts.length >= 4) {
+    // auto close - trigger right click behavior
+    const which = drawMode;
+    if (which === 'bed') { bedZone = [...drawPts]; showAlert('✓ Bed zone set — now draw Edge zone', 3000); }
+    else { edgeZone = [...drawPts]; showAlert('✓ Edge zone set — click Save Zones!', 3000); }
+    document.getElementById('hint').classList.remove('show');
+    document.getElementById('btnBed').classList.remove('active');
+    document.getElementById('btnEdge').classList.remove('active');
+    drawMode = null; drawPts = [];
+    oc.style.cursor = 'default';
+  }
+});
+
+async function saveZones() {
+  if (bedZone.length < 3 || edgeZone.length < 3) {
+    showAlert('Draw both zones first (3+ points each)', 3000); return;
+  }
+  const r = await fetch('/api/calibrate', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ bedZone, edgeZone }),
+  });
+  if (r.ok) { showAlert('✓ Zones saved — monitoring active', 2000); calibrated = true; }
+}
+
+function clearZones() { bedZone=[]; edgeZone=[]; drawMode=null; drawPts=[]; }
+
+// ── View switching ─────────────────────────────────────────────────
+function setView(v) {
+  viewMode = v;
+  document.querySelectorAll('.vtab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('vt-'+v).classList.add('active');
+
+  const isMap = v === 'map';
+  videoEl.style.display    = isMap ? 'none' : 'block';
+  mc.style.display         = isMap ? 'block' : 'none';
+  oc.style.display         = 'block';
+
+  const labels = { live:'LIVE · ZONE OVERLAY', map:'2D MAP VIEW', heat:'HEATMAP OVERLAY' };
+  document.getElementById('modeLabel').textContent = labels[v];
+}
+
+// ── Raw video auth ─────────────────────────────────────────────────
+function showRaw() {
+  document.getElementById('authModal').classList.add('show');
+  setTimeout(()=>document.getElementById('authPwd').focus(),100);
+}
+async function doAuth() {
+  const pwd = document.getElementById('authPwd').value;
+  const r   = await fetch('/api/rawfeed/token?password='+encodeURIComponent(pwd));
+  if (r.ok) {
+    const d = await r.json();
+    rawToken = d.token;
+    sessionStorage.setItem('fg_token', rawToken);
+    videoEl.src = `/api/rawfeed/stream?token=${rawToken}`;
+    document.getElementById('calibOverlay').style.display = 'none';
+    closeAuth();
+    showAlert('Camera feed unlocked', 2000);
+  } else {
+    document.getElementById('authErr').style.display = 'block';
+  }
+}
+function closeAuth() {
+  document.getElementById('authModal').classList.remove('show');
+  document.getElementById('authPwd').value = '';
+  document.getElementById('authErr').style.display = 'none';
+}
+
+// ── Heatmap ────────────────────────────────────────────────────────
+async function fetchHeat() {
+  try { const r=await fetch('/api/heatmap'); heatData=await r.json(); } catch(e){}
+}
+fetchHeat();
+
+// ── Event log ──────────────────────────────────────────────────────
+async function fetchEvents() {
+  try {
+    const r = await fetch('/api/events?limit=50');
+    const d = await r.json();
+    const cols = {
+      FALL_CONFIRMED:'var(--red)',FALL_SUSPECTED:'var(--amber)',
+      EDGE_SITTING:'var(--amber)',EXITING_BED:'var(--amber)',
+      LYING_IN_BED:'var(--green)',STANDING:'var(--blue)',NO_PERSON:'var(--text3)',
+    };
+    document.getElementById('evLog').innerHTML = (d.events||[]).slice(0,40).map(e=>{
+      const t  = new Date(e.ts*1000);
+      const ts = t.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const c  = cols[e.state]||'var(--text1)';
+      return `<div class="evrow"><span class="evtime">${ts}</span><span class="evstate" style="color:${c}">${e.state}</span><span class="evrisk">${e.risk}</span></div>`;
+    }).join('');
+  } catch(e){}
+}
+
+// ── Risk chart ─────────────────────────────────────────────────────
+function drawChart() {
+  const cv=document.getElementById('riskChart');
+  const ctx=cv.getContext('2d');
+  cv.width=cv.offsetWidth; cv.height=cv.offsetHeight;
+  const w=cv.width,h=cv.height,pad={l:28,r:6,t:4,b:16};
+  ctx.fillStyle='#181c22'; ctx.fillRect(0,0,w,h);
+  if (riskHist.length<2) return;
+  const now=Date.now(),tMin=now-HIST_MS;
+  [[0,40,'#22c55e14'],[40,75,'#f59e0b14'],[75,100,'#ef444414']].forEach(([lo,hi,c])=>{
+    const y1=pad.t+(1-hi/100)*(h-pad.t-pad.b),y2=pad.t+(1-lo/100)*(h-pad.t-pad.b);
+    ctx.fillStyle=c; ctx.fillRect(pad.l,y1,w-pad.l-pad.r,y2-y1);
+  });
+  ctx.strokeStyle='#252b35'; ctx.lineWidth=.5;
+  [0,25,50,75,100].forEach(v=>{
+    const y=pad.t+(1-v/100)*(h-pad.t-pad.b);
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();
+    ctx.fillStyle='#525c6a';ctx.font='9px IBM Plex Mono,monospace';ctx.textAlign='right';
+    ctx.fillText(v,pad.l-3,y+3);
+  });
+  ctx.beginPath();
+  riskHist.forEach((p,i)=>{
+    const x=pad.l+(p.ts-tMin)/(now-tMin)*(w-pad.l-pad.r);
+    const y=pad.t+(1-p.risk/100)*(h-pad.t-pad.b);
+    i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  });
+  ctx.strokeStyle='#14b8a6'; ctx.lineWidth=1.5; ctx.stroke();
+}
+
+// ── Alert ──────────────────────────────────────────────────────────
+let alertTimer=null;
+function showAlert(msg,ms=3000){
+  const el=document.getElementById('alertBanner');
+  el.textContent=msg;el.style.display='block';
+  if(alertTimer)clearTimeout(alertTimer);
+  alertTimer=setTimeout(()=>el.style.display='none',ms);
+}
+
+// ── SSE ────────────────────────────────────────────────────────────
+function connectSSE(){
+  const es=new EventSource('/api/alerts/stream');
+  es.onmessage=e=>{
+    const d=JSON.parse(e.data);
+    if(d.type==='connected')return;
+    (d.alerts||[]).forEach(a=>{
+      if(a.type==='FALL_CONFIRMED')showAlert('⚠ FALL CONFIRMED',8000);
+      else if(a.type==='FALL_SUSPECTED')showAlert('⚠ Possible fall',4000);
+      else if(a.type==='EDGE_ALERT')showAlert(`Edge: ${a.seconds}s`,3000);
+    });
+  };
+  es.onerror=()=>{es.close();setTimeout(connectSSE,3000);};
+}
+connectSSE();
+
+function newShift(){
+  if(!confirm('Start new shift? Resets heatmap and counters.'))return;
+  fetch('/api/heatmap/reset',{method:'POST'});
+  riskHist=[];heatData=null;
+  showAlert('New shift started',2000);
+}
+</script>
+</body>
+</html>

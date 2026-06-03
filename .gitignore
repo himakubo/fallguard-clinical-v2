@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+venv/
+*.pt
+*.task
+*.onnx
+*.bin
+*.bak
+data/heatmap_grid.json
+data/event_log.json
+calibration.json
+.env
+.DS_Store
+Thumbs.db
